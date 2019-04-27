@@ -1,0 +1,9 @@
+Package: com.ps.splitit
+Name: SplitIt
+Depends: mobilesubstrate, gsc.ipad
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: Enable keyboard split feature on borderless iPads.
+Maintainer: PoomSmart
+Author: PoomSmart
+Section: Tweaks
