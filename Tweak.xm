@@ -99,6 +99,6 @@ void logUIKBTree(int level, id tree) {
 	dlopen(realPath2(@"/System/Library/PrivateFrameworks/TextInputUI.framework/TextInputUI"), RTLD_LAZY);
 	dlopen(UIKitCorePath, RTLD_LAZY);
 	MSImageRef ref = MSGetImageByName(UIKitCorePath);
-	UIKeyboardDeviceSupportsSplit = (int (*)(void))MSFindSymbol(ref, "_UIKeyboardDeviceSupportsSplit");
+	UIKeyboardDeviceSupportsSplit = (int (*)(void))PSFindSymbolCallable(ref, "_UIKeyboardDeviceSupportsSplit");
 	%init;
 }
