@@ -3,13 +3,14 @@ ifeq ($(SIMULATOR),1)
 	ARCHS = x86_64
 else
 	TARGET = iphone:clang:latest:12.0
+	ARCHS = arm64 arm64e
 endif
 
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = SplitIt
 SplitIt_FILES = Tweak.xm
-SplitIt_EXTRA_FRAMEWORKS = CydiaSubstrate
+SplitIt_LIBRARIES = Substitrate
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 

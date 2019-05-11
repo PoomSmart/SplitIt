@@ -1,68 +1,16 @@
-#import <substrate.h>
+#define CHECK_TARGET
 #import <UIKit/UIKBTree.h>
+#import <UIKit/UIKBShape.h>
+#import <UIKit/UIKBKeyView.h>
+#import <UIKit/UIKeyboardImpl.h>
+#import <UIKit/UIKeyboardLayoutStar.h>
 #import "../PS.h"
+#import "../libsubstitrate/substitrate.h"
 
-%config(generator=MobileSubstrate)
-
-typedef struct { double x1; int x2; } UIKBValue;
-
-int (*UIKeyboardDeviceSupportsSplit)(void);
-
-%hookf(int, UIKeyboardDeviceSupportsSplit) {
-	return 1;
-}
-
-void logUIKBTree(int level, id tree) {
-	id object = [tree respondsToSelector:@selector(properties)] ? ((UIKBTree *)tree).properties : tree;
-	HBLogDebug([NSString stringWithFormat:@"%%%dsproperties %@ : ", level + 1, object], " ");
-	if ([tree respondsToSelector:@selector(subtrees)]) {
-		for (id subtree in ((UIKBTree *)tree).subtrees) {
-			HBLogDebug([NSString stringWithFormat:@"%%%ds%@ : ", level + 3, subtree], " ");
-			logUIKBTree(level + 1, subtree);
-		}
-	}
-}
-
-%hook TUIKeyboardLayoutFactory
-
-- (id)keyboardPrefixForWidth:(CGFloat)width andEdge:(bool)edge {
-	return %orig(width >= 1194.0 ? 1112.0 : width, edge);
-}
-
-/*- (UIKBTree *)keyboardWithName:(NSString *)name inCache:(NSMutableDictionary *)cache {
-	UIKBTree *x = %orig;
-	logUIKBTree(0, x);
-	return x;
-}*/
-
-%end
-
-%hook UIKeyboardCache
-
-+ (BOOL)enabled {
-    return NO;
-}
-
-%end
-
-%hook UIKBTree
-
-- (CGRect)frameForKeylayoutName:(NSString *)key {
-	CGRect rect = %orig;
-	if ([key hasPrefix:@"split-"]) {
-		CGFloat width = MAX(rect.size.width, rect.size.height);
-		if ([key isEqualToString:@"split-left"]) {
-			rect.size.width = width >= 1194 ? 570 : 285;
-		}
-		else if ([key isEqualToString:@"split-right"]) {
-			rect.size.width = width >= 1194 ? 570 : 285;
-			rect.origin.x = width - (width >= 1194 ? 570 : 285);
-		}
-	}
-	return rect;
-}
-
-%end
+typedef struct UIKBValue {
+	CGFloat amount;
+	int unit;
+} UIKBValue;
 
 %hook TUIKBGraphSerialization
 
@@ -70,35 +18,166 @@ void logUIKBTree(int level, id tree) {
 	CGRect orig = %orig;
 	if (orig.size.width == 768)
 		orig.size.width = 834;
-	else if (orig.size.width == 1024)
+	else if (orig.size.width == 1024 || orig.size.width == 1112)
 		orig.size.width = 1194;
 	if (orig.size.height == 768)
 		orig.size.height = 834;
-	else if (orig.size.height == 1024)
+	else if (orig.size.height == 1024 || orig.size.height == 1112)
 		orig.size.height = 1194;
+	if (orig.origin.x > 1194)
+		orig.origin.x -= 1194;
 	return orig;
 }
 
 %end
 
-/*%hook UIKBScreenTraits
+BOOL override = NO;
+
+%hook UIKeyboardEmojiSplitCharacterPicker
+
+- (void)setFrame:(CGRect)frame {
+	if (frame.origin.x == 512)
+		frame.origin.x = 834 - frame.size.width - 56;
+	else if (frame.origin.x == 767)
+		frame.origin.x = 1194 - frame.size.width - 56;
+	%orig(frame);
+}
+
+%end
+
+BOOL isTargetKey(UIKBTree *keyplane, UIKBTree *key) {
+	return [keyplane.name containsString:@"Wildcat-Emoji-Keyboard"] && [keyplane.name hasSuffix:@"-split"] && key.frame.size.width == 56;
+}
+
+CGRect modifyKeyFrame(CGRect frame) {
+	CGRect mframe = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+	BOOL set = mframe.origin.x == 716 || mframe.origin.x == 968;
+	set = set && mframe.size.width != 0;
+	if (set) {
+		CGFloat base = mframe.origin.x == 716 ? 834 : 1194;
+		mframe.origin.x = base - mframe.size.width;
+	}
+	return mframe;
+}
+
+%hook UIKBKeyView
+
+- (void)layoutSubviews {
+	%orig;
+	if (isTargetKey(self.keyplane, self.key)) {
+		CGRect frame = self.frame;
+		CGRect mframe = modifyKeyFrame(frame);
+		self.drawFrame = mframe;
+		self.key.frame = mframe;
+		self.key.shape.frame = mframe;
+		self.key.shape.paddedFrame = mframe;
+		self.key.shape = self.key.shape;
+	}
+}
+
+%end
+
+%hook UIKBScreenTraits
 
 - (CGFloat)keyboardWidth {
-	CGFloat width = %orig;
-	return width >= 1194.0 ? 1112.0 : width;
+	CGFloat orig = %orig;
+	return override ? orig > 1112.0 ? 1112.0 : orig : orig;
 }
 
-- (void)setKeyboardWidth:(CGFloat)width {
-	%orig(width >= 1194.0 ? 1112.0 : width);
+%end
+
+%hook UIKBInputBackdropView
+
+- (id)initWithFrame:(CGRect)frame {
+	override = YES;
+	self = %orig;
+	override = NO;
+	return self;
 }
 
-%end*/
+%end
+
+%hook UIInputViewSet
+
+- (bool)_inputViewSupportsSplit {
+	override = YES;
+	bool orig = %orig;
+	override = NO;
+	return orig;
+}
+
+%end
+
+%hook UIKeyboardImpl
+
++ (bool)supportsSplit {
+	override = YES;
+	bool orig = %orig;
+	override = NO;
+	return orig;
+}
+
++ (void)refreshRivenStateWithTraits:(id)trats isKeyboard:(bool)isKeyboard {
+	override = YES;
+	%orig;
+	override = NO;
+}
+
+%end
+
+%hook UIKeyboardLayoutStar
+
+- (void)setFrame:(CGRect)frame {
+	if ([self.keyplane isSplit] && frame.size.height > 216) {
+		if (frame.size.height - 17 > 200)
+			frame.size.height -= 17;
+	}
+	%orig(frame);
+}
+
+- (bool)_shouldAttemptToAddSupplementaryControlKeys {
+	override = [self.keyplane isSplit];
+	bool orig = %orig;
+	override = NO;
+	return orig;
+}
+
+- (void)_swapGlobeAndMoreKeysIfNecessary {
+	override = [self.keyplane isSplit];
+	%orig;
+	override = NO;
+}
+
+%end
+
+%group Bundle
+
+%hook KeyboardController
+
+- (void)loadPreferenceForInputModeIdentifier:(void *)arg2 keyboardInputMode:(void *)arg3 addNewPreferencesToArray:(void *)arg4 defaultPreferenceIdentifiers:(void *)arg5 additionalPreferenceIdentifiers:(void *)arg6 mapPreferenceToInputMode:(void *)arg7 {
+	override = YES;
+	%orig;
+	override = NO;
+}
+
+%end
+
+%end
+
+int (*_UIKeyboardComputeKeyboardIdiomFromScreenTraits)(void *, int, int);
+int UIKeyboardComputeKeyboardIdiomFromScreenTraits(void *screenTraits, int idiom, int arg3) {
+	return override ? 0 : _UIKeyboardComputeKeyboardIdiomFromScreenTraits(screenTraits, idiom, arg3);
+}
 
 %ctor {
-	const char *UIKitCorePath = realPath2(@"/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore");
-	dlopen(realPath2(@"/System/Library/PrivateFrameworks/TextInputUI.framework/TextInputUI"), RTLD_LAZY);
-	dlopen(UIKitCorePath, RTLD_LAZY);
-	MSImageRef ref = MSGetImageByName(UIKitCorePath);
-	UIKeyboardDeviceSupportsSplit = (int (*)(void))PSFindSymbolCallable(ref, "_UIKeyboardDeviceSupportsSplit");
-	%init;
+	if (isTarget(TargetTypeApps)) {
+		dlopen(realPath2(@"/System/Library/PrivateFrameworks/TextInputUI.framework/TextInputUI"), RTLD_LAZY);
+		const char *path = realPath2(@"/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore");
+		if ([@"com.apple.Preferences" isEqualToString:NSBundle.mainBundle.bundleIdentifier]) {
+			dlopen("/System/Library/PreferenceBundles/KeyboardSettings.bundle/KeyboardSettings", RTLD_NOW | RTLD_GLOBAL);
+			%init(Bundle);
+		}
+		%init;
+		_PSHookFunctionCompat(path, "_UIKeyboardComputeKeyboardIdiomFromScreenTraits", UIKeyboardComputeKeyboardIdiomFromScreenTraits);
+	}
 }
