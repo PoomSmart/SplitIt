@@ -7,12 +7,8 @@
 #import "../PS.h"
 #import "../libsubstitrate/substitrate.h"
 
-typedef struct UIKBValue {
-	CGFloat amount;
-	int unit;
-} UIKBValue;
-
-%hook TUIKBGraphSerialization
+// Uncomment if non iOS 13 keyboard layout file used
+/*%hook TUIKBGraphSerialization
 
 - (CGRect)CGRectForOffset:(int *)offset {
 	CGRect orig = %orig;
@@ -31,8 +27,6 @@ typedef struct UIKBValue {
 
 %end
 
-BOOL override = NO;
-
 %hook UIKeyboardEmojiSplitCharacterPicker
 
 - (void)setFrame:(CGRect)frame {
@@ -43,7 +37,9 @@ BOOL override = NO;
 	%orig(frame);
 }
 
-%end
+%end*/
+
+BOOL override = NO;
 
 BOOL isTargetKey(UIKBTree *keyplane, UIKBTree *key) {
 	return [keyplane.name containsString:@"Wildcat-Emoji-Keyboard"] && [keyplane.name hasSuffix:@"-split"] && key.frame.size.width == 56;
