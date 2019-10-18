@@ -5,7 +5,6 @@
 #import <UIKit/UIKeyboardImpl.h>
 #import <UIKit/UIKeyboardLayoutStar.h>
 #import "../PS.h"
-#import "../libsubstitrate/substitrate.h"
 
 // Uncomment if non iOS 13 keyboard layout file used
 /*%hook TUIKBGraphSerialization
@@ -38,6 +37,14 @@
 }
 
 %end*/
+
+%hook TUIKeyboardLayoutFactory
+
++ (NSString *)layoutsFileName {
+	return @"KBLayouts_iPad2.dat";
+}
+
+%end
 
 BOOL override = NO;
 
@@ -160,20 +167,20 @@ CGRect modifyKeyFrame(CGRect frame) {
 
 %end
 
-int (*_UIKeyboardComputeKeyboardIdiomFromScreenTraits)(void *, int, int);
-int UIKeyboardComputeKeyboardIdiomFromScreenTraits(void *screenTraits, int idiom, int arg3) {
-	return override ? 0 : _UIKeyboardComputeKeyboardIdiomFromScreenTraits(screenTraits, idiom, arg3);
+int (*UIKeyboardComputeKeyboardIdiomFromScreenTraits)(void *, int, int);
+%hookf(int, UIKeyboardComputeKeyboardIdiomFromScreenTraits, void *screenTraits, int idiom, int arg3) {
+	return override ? 0 : %orig(screenTraits, idiom, arg3);
 }
 
 %ctor {
 	if (isTarget(TargetTypeApps)) {
 		dlopen(realPath2(@"/System/Library/PrivateFrameworks/TextInputUI.framework/TextInputUI"), RTLD_LAZY);
-		const char *path = realPath2(@"/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore");
+		MSImageRef ref = MSGetImageByName(realPath2(@"/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore"));
 		if ([@"com.apple.Preferences" isEqualToString:NSBundle.mainBundle.bundleIdentifier]) {
 			dlopen("/System/Library/PreferenceBundles/KeyboardSettings.bundle/KeyboardSettings", RTLD_NOW | RTLD_GLOBAL);
 			%init(Bundle);
 		}
+		UIKeyboardComputeKeyboardIdiomFromScreenTraits = (int (*)(void *, int, int))_PSFindSymbolCallable(ref, "_UIKeyboardComputeKeyboardIdiomFromScreenTraits");
 		%init;
-		_PSHookFunctionCompat(path, "_UIKeyboardComputeKeyboardIdiomFromScreenTraits", UIKeyboardComputeKeyboardIdiomFromScreenTraits);
 	}
 }
